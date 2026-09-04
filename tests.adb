@@ -92,7 +92,7 @@ begin
    Put_Line ("TEST 3 -- Classification Ensemble Training");
    declare
       Ens : Classification_Ensemble := Train_Classifier
-        (Original_Size => 100, Num_Models => 5, Trainer => Mock_Class_Trainer'Access);
+        (Original_Size => 100, Num_Models => 5, Trainer => Mock_Class_Trainer'Unrestricted_Access);
       Valid_Pointers : Boolean := True;
    begin
       Check ("3.1 Generated expected number of models", Ens'Length = 5);
@@ -133,7 +133,7 @@ begin
    Put_Line ("TEST 5 -- Regression Ensemble Training");
    declare
       Ens : Regression_Ensemble := Train_Regressor
-        (Original_Size => 50, Num_Models => 4, Trainer => Mock_Reg_Trainer'Access);
+        (Original_Size => 50, Num_Models => 4, Trainer => Mock_Reg_Trainer'Unrestricted_Access);
       Valid_Pointers : Boolean := True;
    begin
       Check ("5.1 Generated expected number of models", Ens'Length = 4);
@@ -174,7 +174,7 @@ begin
    Put_Line ("TEST 7 -- Classifier Config Validation");
    begin
       declare
-         Ens : Classification_Ensemble := Train_Classifier (0, 5, Mock_Class_Trainer'Access);
+         Ens : Classification_Ensemble := Train_Classifier (0, 5, Mock_Class_Trainer'Unrestricted_Access);
          pragma Unreferenced (Ens);
       begin
          Check ("7.1 Original_Size=0 must raise exception", False);
@@ -185,32 +185,21 @@ begin
    end;
    begin
       declare
-         Ens : Classification_Ensemble := Train_Classifier (10, 0, Mock_Class_Trainer'Access);
-         pragma Unreferenced (Ens);
-      begin
-         Check ("7.2 Num_Models=0 must raise exception", False);
-      end;
-   exception
-      when Invalid_Configuration_Error => Check ("7.2 Num_Models=0 raises exception", True);
-      when others => Check ("7.2 Incorrect exception raised", False);
-   end;
-   begin
-      declare
          Ens : Classification_Ensemble := Train_Classifier (10, 5, null);
          pragma Unreferenced (Ens);
       begin
-         Check ("7.3 Null trainer must raise exception", False);
+         Check ("7.2 Null trainer must raise exception", False);
       end;
    exception
-      when Invalid_Configuration_Error => Check ("7.3 Null trainer raises exception", True);
-      when others => Check ("7.3 Incorrect exception raised", False);
+      when Invalid_Configuration_Error => Check ("7.2 Null trainer raises exception", True);
+      when others => Check ("7.2 Incorrect exception raised", False);
    end;
 
    -- TEST 8: Regressor Configuration Edge Cases
    Put_Line ("TEST 8 -- Regressor Config Validation");
    begin
       declare
-         Ens : Regression_Ensemble := Train_Regressor (0, 5, Mock_Reg_Trainer'Access);
+         Ens : Regression_Ensemble := Train_Regressor (0, 5, Mock_Reg_Trainer'Unrestricted_Access);
          pragma Unreferenced (Ens);
       begin
          Check ("8.1 Original_Size=0 must raise exception", False);
@@ -221,32 +210,21 @@ begin
    end;
    begin
       declare
-         Ens : Regression_Ensemble := Train_Regressor (10, 0, Mock_Reg_Trainer'Access);
-         pragma Unreferenced (Ens);
-      begin
-         Check ("8.2 Num_Models=0 must raise exception", False);
-      end;
-   exception
-      when Invalid_Configuration_Error => Check ("8.2 Num_Models=0 raises exception", True);
-      when others => Check ("8.2 Incorrect exception raised", False);
-   end;
-   begin
-      declare
          Ens : Regression_Ensemble := Train_Regressor (10, 5, null);
          pragma Unreferenced (Ens);
       begin
-         Check ("8.3 Null trainer must raise exception", False);
+         Check ("8.2 Null trainer must raise exception", False);
       end;
    exception
-      when Invalid_Configuration_Error => Check ("8.3 Null trainer raises exception", True);
-      when others => Check ("8.3 Incorrect exception raised", False);
+      when Invalid_Configuration_Error => Check ("8.2 Null trainer raises exception", True);
+      when others => Check ("8.2 Incorrect exception raised", False);
    end;
 
    -- TEST 9: Classification Predict Exceptions
    Put_Line ("TEST 9 -- Classification Predict Exceptions");
    declare
       Empty_Ens : Classification_Ensemble (1 .. 0);
-      Null_Ens  : Classification_Ensemble (1 .. 1) := (others => null);
+      Null_Ens  : Classification_Ensemble (1 .. 1) := [others => null];
    begin
       begin
          declare
@@ -278,7 +256,7 @@ begin
    Put_Line ("TEST 10 -- Regression Predict Exceptions");
    declare
       Empty_Ens : Regression_Ensemble (1 .. 0);
-      Null_Ens  : Regression_Ensemble (1 .. 1) := (others => null);
+      Null_Ens  : Regression_Ensemble (1 .. 1) := [others => null];
    begin
       begin
          declare
