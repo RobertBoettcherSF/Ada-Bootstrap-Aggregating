@@ -53,7 +53,7 @@ package body Bootstrap_Aggregating is
       Actual_Size : Natural := Sample_Size;
    begin
       -- Dynamic validations (in addition to Pre conditions)
-      if Original_Size = 0 or Num_Models = 0 or Trainer = null then
+      if Original_Size = 0 or Trainer = null then
          raise Invalid_Configuration_Error;
       end if;
 
@@ -138,7 +138,7 @@ package body Bootstrap_Aggregating is
       Actual_Size : Natural := Sample_Size;
    begin
       -- Dynamic validations (in addition to Pre conditions)
-      if Original_Size = 0 or Num_Models = 0 or Trainer = null then
+      if Original_Size = 0 or Trainer = null then
          raise Invalid_Configuration_Error;
       end if;
 
