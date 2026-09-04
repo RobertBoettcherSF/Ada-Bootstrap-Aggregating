@@ -40,8 +40,8 @@ procedure Tests is
    function To_Reg_Access is new Ada.Unchecked_Conversion
      (Source => Local_Reg_Access, Target => Regression_Model_Access);
 
-   Forced_Class_Prediction : Class_Label := 0;
-   Forced_Reg_Prediction   : Regression_Value := 0.0;
+   Forced_Class_Prediction : constant Class_Label := 0;
+   Forced_Reg_Prediction   : constant Regression_Value := 0.0;
 
    function Mock_Class_Trainer (Sample_Indices : Index_Array) return Classification_Model_Access is
       pragma Unreferenced (Sample_Indices);
@@ -224,7 +224,7 @@ begin
    Put_Line ("TEST 9 -- Classification Predict Exceptions");
    declare
       Empty_Ens : Classification_Ensemble (1 .. 0);
-      Null_Ens  : Classification_Ensemble (1 .. 1) := [others => null];
+      Null_Ens  : constant Classification_Ensemble (1 .. 1) := [others => null];
    begin
       begin
          declare
@@ -256,7 +256,7 @@ begin
    Put_Line ("TEST 10 -- Regression Predict Exceptions");
    declare
       Empty_Ens : Regression_Ensemble (1 .. 0);
-      Null_Ens  : Regression_Ensemble (1 .. 1) := [others => null];
+      Null_Ens  : constant Regression_Ensemble (1 .. 1) := [others => null];
    begin
       begin
          declare
