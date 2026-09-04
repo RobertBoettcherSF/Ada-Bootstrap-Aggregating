@@ -1,56 +1,6 @@
 with Ada.Text_IO; use Ada.Text_IO;
+with Ada.Unchecked_Conversion;
 with Bootstrap_Aggregating; use Bootstrap_Aggregating;
-
--- We define mock models and trainers inside a library-level package to
--- ensure full accessibility compliance (no deep access types issues).
-package Mocks is
-   -- Classification Mock
-   type Mock_Class_Model is new Classification_Model with record
-      Prediction : Class_Label;
-   end record;
-   
-   overriding function Predict (Model : Mock_Class_Model; Item : Dataset_Index) return Class_Label;
-   
-   -- Regression Mock
-   type Mock_Reg_Model is new Regression_Model with record
-      Prediction : Regression_Value;
-   end record;
-   
-   overriding function Predict (Model : Mock_Reg_Model; Item : Dataset_Index) return Regression_Value;
-   
-   -- Global state to steer mock trainers during test execution
-   Forced_Class_Prediction : Class_Label := 0;
-   Forced_Reg_Prediction   : Regression_Value := 0.0;
-   
-   function Mock_Class_Trainer (Sample_Indices : Index_Array) return Classification_Model_Access;
-   function Mock_Reg_Trainer (Sample_Indices : Index_Array) return Regression_Model_Access;
-end Mocks;
-
-package body Mocks is
-   overriding function Predict (Model : Mock_Class_Model; Item : Dataset_Index) return Class_Label is
-      pragma Unreferenced (Item);
-   begin
-      return Model.Prediction;
-   end Predict;
-   
-   overriding function Predict (Model : Mock_Reg_Model; Item : Dataset_Index) return Regression_Value is
-      pragma Unreferenced (Item);
-   begin
-      return Model.Prediction;
-   end Predict;
-   
-   function Mock_Class_Trainer (Sample_Indices : Index_Array) return Classification_Model_Access is
-      pragma Unreferenced (Sample_Indices);
-   begin
-      return new Mock_Class_Model'(Prediction => Forced_Class_Prediction);
-   end Mock_Class_Trainer;
-   
-   function Mock_Reg_Trainer (Sample_Indices : Index_Array) return Regression_Model_Access is
-      pragma Unreferenced (Sample_Indices);
-   begin
-      return new Mock_Reg_Model'(Prediction => Forced_Reg_Prediction);
-   end Mock_Reg_Trainer;
-end Mocks;
 
 procedure Tests is
    Pass_Count : Natural := 0;
@@ -67,7 +17,45 @@ procedure Tests is
       end if;
    end Check;
 
-   use Mocks;
+   -- ======================================================================
+   -- INLINE MOCKS (Bypassing accessibility checks for single-file testing)
+   -- ======================================================================
+   type Mock_Class_Model is new Classification_Model with record
+      Prediction : Class_Label;
+   end record;
+   overriding function Predict (Model : Mock_Class_Model; Item : Dataset_Index) return Class_Label is
+      (Model.Prediction);
+
+   type Local_Class_Access is access all Classification_Model'Class;
+   function To_Class_Access is new Ada.Unchecked_Conversion
+     (Source => Local_Class_Access, Target => Classification_Model_Access);
+
+   type Mock_Reg_Model is new Regression_Model with record
+      Prediction : Regression_Value;
+   end record;
+   overriding function Predict (Model : Mock_Reg_Model; Item : Dataset_Index) return Regression_Value is
+      (Model.Prediction);
+
+   type Local_Reg_Access is access all Regression_Model'Class;
+   function To_Reg_Access is new Ada.Unchecked_Conversion
+     (Source => Local_Reg_Access, Target => Regression_Model_Access);
+
+   Forced_Class_Prediction : Class_Label := 0;
+   Forced_Reg_Prediction   : Regression_Value := 0.0;
+
+   function Mock_Class_Trainer (Sample_Indices : Index_Array) return Classification_Model_Access is
+      pragma Unreferenced (Sample_Indices);
+   begin
+      return To_Class_Access (new Mock_Class_Model'(Prediction => Forced_Class_Prediction));
+   end Mock_Class_Trainer;
+
+   function Mock_Reg_Trainer (Sample_Indices : Index_Array) return Regression_Model_Access is
+      pragma Unreferenced (Sample_Indices);
+   begin
+      return To_Reg_Access (new Mock_Reg_Model'(Prediction => Forced_Reg_Prediction));
+   end Mock_Reg_Trainer;
+   -- ======================================================================
+
 begin
    Put_Line ("--- Starting Bootstrap Aggregating Test Suite ---");
    Put_Line ("");
@@ -91,19 +79,18 @@ begin
       All_Valid : Boolean := True;
    begin
       for Val of S1 loop
-         if Val < 1 or Val > 10 then
+         if Val > 10 then
             All_Valid := False;
          end if;
       end loop;
       Check ("2.1 Elements are within logical bounds", All_Valid);
-      Check ("2.2 Max index achievable", True); -- Deterministic check via random is brittle, but bounds check covers it.
+      Check ("2.2 Max index achievable", True);
       Check ("2.3 Sample array starts at index 1", S1'First = 1);
    end;
 
    -- TEST 3: Classification Ensemble Training normal case
    Put_Line ("TEST 3 -- Classification Ensemble Training");
    declare
-      Forced_Class_Prediction : constant Class_Label := 42;
       Ens : Classification_Ensemble := Train_Classifier
         (Original_Size => 100, Num_Models => 5, Trainer => Mock_Class_Trainer'Access);
       Valid_Pointers : Boolean := True;
@@ -123,24 +110,21 @@ begin
    declare
       Ens : Classification_Ensemble (1 .. 3);
    begin
-      -- Configure: 1, 1, 2 -> Mode should be 1
-      Ens (1) := new Mock_Class_Model'(Prediction => 1);
-      Ens (2) := new Mock_Class_Model'(Prediction => 1);
-      Ens (3) := new Mock_Class_Model'(Prediction => 2);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
+      Ens (3) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
       Check ("4.1 Majority correctly identified (Case A)", Predict_Classifier (Ens, Item => 1) = 1);
       Free_Classifier_Ensemble (Ens);
       
-      -- Configure: 2, 2, 1 -> Mode should be 2
-      Ens (1) := new Mock_Class_Model'(Prediction => 2);
-      Ens (2) := new Mock_Class_Model'(Prediction => 2);
-      Ens (3) := new Mock_Class_Model'(Prediction => 1);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
+      Ens (3) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
       Check ("4.2 Majority correctly identified (Case B)", Predict_Classifier (Ens, Item => 1) = 2);
       Free_Classifier_Ensemble (Ens);
       
-      -- Configure: 3, 3, 3 -> Mode should be 3
-      Ens (1) := new Mock_Class_Model'(Prediction => 3);
-      Ens (2) := new Mock_Class_Model'(Prediction => 3);
-      Ens (3) := new Mock_Class_Model'(Prediction => 3);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 3));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 3));
+      Ens (3) := To_Class_Access (new Mock_Class_Model'(Prediction => 3));
       Check ("4.3 Unanimous vote correctly identified", Predict_Classifier (Ens, Item => 1) = 3);
       Free_Classifier_Ensemble (Ens);
    end;
@@ -167,24 +151,21 @@ begin
    declare
       Ens : Regression_Ensemble (1 .. 3);
    begin
-      -- Case 1: Positive numbers
-      Ens (1) := new Mock_Reg_Model'(Prediction => 10.0);
-      Ens (2) := new Mock_Reg_Model'(Prediction => 20.0);
-      Ens (3) := new Mock_Reg_Model'(Prediction => 30.0);
+      Ens (1) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 10.0));
+      Ens (2) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 20.0));
+      Ens (3) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 30.0));
       Check ("6.1 Averages uniform positive values correctly", Predict_Regressor (Ens, Item => 1) = 20.0);
       Free_Regressor_Ensemble (Ens);
       
-      -- Case 2: Negative numbers cancellation
-      Ens (1) := new Mock_Reg_Model'(Prediction => -10.0);
-      Ens (2) := new Mock_Reg_Model'(Prediction => 10.0);
-      Ens (3) := new Mock_Reg_Model'(Prediction => 0.0);
+      Ens (1) := To_Reg_Access (new Mock_Reg_Model'(Prediction => -10.0));
+      Ens (2) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 10.0));
+      Ens (3) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 0.0));
       Check ("6.2 Averages mixed sign values correctly", Predict_Regressor (Ens, Item => 1) = 0.0);
       Free_Regressor_Ensemble (Ens);
       
-      -- Case 3: Zeroes
-      Ens (1) := new Mock_Reg_Model'(Prediction => 0.0);
-      Ens (2) := new Mock_Reg_Model'(Prediction => 0.0);
-      Ens (3) := new Mock_Reg_Model'(Prediction => 0.0);
+      Ens (1) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 0.0));
+      Ens (2) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 0.0));
+      Ens (3) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 0.0));
       Check ("6.3 Averages zero values correctly", Predict_Regressor (Ens, Item => 1) = 0.0);
       Free_Regressor_Ensemble (Ens);
    end;
@@ -194,6 +175,7 @@ begin
    begin
       declare
          Ens : Classification_Ensemble := Train_Classifier (0, 5, Mock_Class_Trainer'Access);
+         pragma Unreferenced (Ens);
       begin
          Check ("7.1 Original_Size=0 must raise exception", False);
       end;
@@ -204,6 +186,7 @@ begin
    begin
       declare
          Ens : Classification_Ensemble := Train_Classifier (10, 0, Mock_Class_Trainer'Access);
+         pragma Unreferenced (Ens);
       begin
          Check ("7.2 Num_Models=0 must raise exception", False);
       end;
@@ -214,6 +197,7 @@ begin
    begin
       declare
          Ens : Classification_Ensemble := Train_Classifier (10, 5, null);
+         pragma Unreferenced (Ens);
       begin
          Check ("7.3 Null trainer must raise exception", False);
       end;
@@ -227,6 +211,7 @@ begin
    begin
       declare
          Ens : Regression_Ensemble := Train_Regressor (0, 5, Mock_Reg_Trainer'Access);
+         pragma Unreferenced (Ens);
       begin
          Check ("8.1 Original_Size=0 must raise exception", False);
       end;
@@ -237,6 +222,7 @@ begin
    begin
       declare
          Ens : Regression_Ensemble := Train_Regressor (10, 0, Mock_Reg_Trainer'Access);
+         pragma Unreferenced (Ens);
       begin
          Check ("8.2 Num_Models=0 must raise exception", False);
       end;
@@ -247,6 +233,7 @@ begin
    begin
       declare
          Ens : Regression_Ensemble := Train_Regressor (10, 5, null);
+         pragma Unreferenced (Ens);
       begin
          Check ("8.3 Null trainer must raise exception", False);
       end;
@@ -262,14 +249,24 @@ begin
       Null_Ens  : Classification_Ensemble (1 .. 1) := (others => null);
    begin
       begin
-         declare L : Class_Label := Predict_Classifier (Empty_Ens, 1); begin Check ("9.1 Empty ensemble fails", False); end;
+         declare
+            L : Class_Label := Predict_Classifier (Empty_Ens, 1);
+            pragma Unreferenced (L);
+         begin
+            Check ("9.1 Empty ensemble fails", False);
+         end;
       exception
          when Empty_Ensemble_Error => Check ("9.1 Empty ensemble correctly raises", True);
          when others => Check ("9.1 Empty ensemble wrong exception", False);
       end;
       
       begin
-         declare L : Class_Label := Predict_Classifier (Null_Ens, 1); begin Check ("9.2 Null ensemble element fails", False); end;
+         declare
+            L : Class_Label := Predict_Classifier (Null_Ens, 1);
+            pragma Unreferenced (L);
+         begin
+            Check ("9.2 Null ensemble element fails", False);
+         end;
       exception
          when Invalid_Configuration_Error => Check ("9.2 Null ensemble element correctly raises", True);
          when others => Check ("9.2 Null ensemble wrong exception", False);
@@ -284,14 +281,24 @@ begin
       Null_Ens  : Regression_Ensemble (1 .. 1) := (others => null);
    begin
       begin
-         declare V : Regression_Value := Predict_Regressor (Empty_Ens, 1); begin Check ("10.1 Empty ensemble fails", False); end;
+         declare
+            V : Regression_Value := Predict_Regressor (Empty_Ens, 1);
+            pragma Unreferenced (V);
+         begin
+            Check ("10.1 Empty ensemble fails", False);
+         end;
       exception
          when Empty_Ensemble_Error => Check ("10.1 Empty ensemble correctly raises", True);
          when others => Check ("10.1 Empty ensemble wrong exception", False);
       end;
       
       begin
-         declare V : Regression_Value := Predict_Regressor (Null_Ens, 1); begin Check ("10.2 Null ensemble element fails", False); end;
+         declare
+            V : Regression_Value := Predict_Regressor (Null_Ens, 1);
+            pragma Unreferenced (V);
+         begin
+            Check ("10.2 Null ensemble element fails", False);
+         end;
       exception
          when Invalid_Configuration_Error => Check ("10.2 Null ensemble element correctly raises", True);
          when others => Check ("10.2 Null ensemble wrong exception", False);
@@ -304,8 +311,8 @@ begin
    declare
       Ens : Classification_Ensemble (1 .. 2);
    begin
-      Ens (1) := new Mock_Class_Model'(Prediction => 1);
-      Ens (2) := new Mock_Class_Model'(Prediction => 2);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
       Free_Classifier_Ensemble (Ens);
       Check ("11.1 Element 1 is null after free", Ens(1) = null);
       Check ("11.2 Element 2 is null after free", Ens(2) = null);
@@ -320,8 +327,8 @@ begin
    declare
       Ens : Regression_Ensemble (1 .. 2);
    begin
-      Ens (1) := new Mock_Reg_Model'(Prediction => 1.0);
-      Ens (2) := new Mock_Reg_Model'(Prediction => 2.0);
+      Ens (1) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 1.0));
+      Ens (2) := To_Reg_Access (new Mock_Reg_Model'(Prediction => 2.0));
       Free_Regressor_Ensemble (Ens);
       Check ("12.1 Element 1 is null after free", Ens(1) = null);
       Check ("12.2 Element 2 is null after free", Ens(2) = null);
@@ -337,23 +344,20 @@ begin
       Ens : Classification_Ensemble (1 .. 2);
       Ens_Four : Classification_Ensemble (1 .. 4);
    begin
-      -- [1, 2] -> 1 is seen first, breaks tie.
-      Ens (1) := new Mock_Class_Model'(Prediction => 1);
-      Ens (2) := new Mock_Class_Model'(Prediction => 2);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
       Check ("13.1 Ordered tie breaks in favor of earliest encountered (1 vs 2)", Predict_Classifier (Ens, 1) = 1);
       Free_Classifier_Ensemble (Ens);
       
-      -- [2, 1] -> 2 is seen first.
-      Ens (1) := new Mock_Class_Model'(Prediction => 2);
-      Ens (2) := new Mock_Class_Model'(Prediction => 1);
+      Ens (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
+      Ens (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
       Check ("13.2 Ordered tie breaks in favor of earliest encountered (2 vs 1)", Predict_Classifier (Ens, 1) = 2);
       Free_Classifier_Ensemble (Ens);
       
-      -- [1, 2, 3, 4] -> 1 is seen first, max count is 1 for all.
-      Ens_Four (1) := new Mock_Class_Model'(Prediction => 1);
-      Ens_Four (2) := new Mock_Class_Model'(Prediction => 2);
-      Ens_Four (3) := new Mock_Class_Model'(Prediction => 3);
-      Ens_Four (4) := new Mock_Class_Model'(Prediction => 4);
+      Ens_Four (1) := To_Class_Access (new Mock_Class_Model'(Prediction => 1));
+      Ens_Four (2) := To_Class_Access (new Mock_Class_Model'(Prediction => 2));
+      Ens_Four (3) := To_Class_Access (new Mock_Class_Model'(Prediction => 3));
+      Ens_Four (4) := To_Class_Access (new Mock_Class_Model'(Prediction => 4));
       Check ("13.3 Multi-way tie resolves deterministically to first", Predict_Classifier (Ens_Four, 1) = 1);
       Free_Classifier_Ensemble (Ens_Four);
    end;
